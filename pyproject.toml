@@ -1,0 +1,31 @@
+[project]
+name = "tunisie-simulateur-amen-social"
+version = "0.1.0"
+description = "Simulateur du programme Amen social (Tunisie), basé sur OpenFisca-Tunisia et Shiny for Python"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Mahdi Ben Jelloul" }]
+dependencies = [
+    "shiny>=1.0",
+    "openfisca-tunisia>=0.159",
+    "openfisca-core[web-api]>=43",
+    "httpx>=0.27",
+    "pandas>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/benjello/tunisie-simulateur-amen-social"
+Repository = "https://github.com/benjello/tunisie-simulateur-amen-social"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "rsconnect-python>=1.33.2",
+]
+
+[tool.uv]
+# Le programme Amen social vit dans openfisca_tunisia (prestations non
+# contributives). Une petite réforme locale (app/reform.py) corrige deux défauts
+# du modèle qui rendent le transfert monétaire permanent inexécutable ; à
+# remonter en amont (voir docs/notes/desaccords.md).

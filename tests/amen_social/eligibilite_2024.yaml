@@ -1,0 +1,75 @@
+# Tests d'éligibilité Amen social (critères primaires, décret 2020-317).
+# Exécutables sur le modèle nu, sans réforme :
+#   openfisca test tests/amen_social/ -c openfisca_tunisia
+#
+# Le montant du transfert monétaire permanent (TMP) n'est PAS testé ici : sa
+# chaîne est inexécutable sur le modèle nu (deux défauts corrigés par la réforme
+# app/reform.py). Il est couvert par tests/test_transfert_monetaire.py.
+
+- name: "Ménage pauvre de 4 personnes, 2 enfants dont 1 lourdement handicapé — éligible"
+  period: 2024-01
+  absolute_error_margin: 0.01
+  input:
+    individus:
+      parent1:
+        age: 40
+        salaire_net_a_payer:
+          2024-01: 150
+      parent2:
+        age: 38
+      enfant1:
+        age: 8
+      enfant2:
+        age: 12
+        handicap: 3
+    menages:
+      menage1:
+        personne_de_reference: [parent1]
+        conjoint: [parent2]
+        enfants: [enfant1, enfant2]
+        amen_social_pas_de_residence_secondaire: true
+        amen_social_pas_d_achat_onereux: true
+  output:
+    amen_social_revenu: 150
+    amen_social_presence_handicap_lourd: true
+    amen_social_eligible: true
+    amen_social_enfants_a_charge: 2
+    amen_social_enfants_handicapes_a_charge: 1
+
+- name: "Même ménage mais revenu élevé — non éligible (critère de revenu)"
+  period: 2024-01
+  input:
+    individus:
+      parent1:
+        age: 40
+        salaire_net_a_payer:
+          2024-01: 2000
+      parent2:
+        age: 38
+      enfant1:
+        age: 8
+    menages:
+      menage1:
+        personne_de_reference: [parent1]
+        conjoint: [parent2]
+        enfants: [enfant1]
+        amen_social_pas_de_residence_secondaire: true
+        amen_social_pas_d_achat_onereux: true
+  output:
+    amen_social_eligible: false
+
+- name: "Ménage pauvre mais propriétaire d'une résidence secondaire — non éligible"
+  period: 2024-01
+  input:
+    individus:
+      parent1:
+        age: 45
+        salaire_net_a_payer:
+          2024-01: 150
+    menages:
+      menage1:
+        personne_de_reference: [parent1]
+        amen_social_pas_de_residence_secondaire: false
+        amen_social_pas_d_achat_onereux: true
+  output:
+    amen_social_eligible: false
