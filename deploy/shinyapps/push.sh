@@ -18,6 +18,11 @@ set -euo pipefail
 # rsconnect réutilise le token/secret déjà stockés, sans les redemander.
 COMPTE="${1:?Usage: push.sh <compte> [nom-app]}"
 APPNAME="${2:-simulateur-amen-social-tunisie}"
+# ID de l'app shinyapps.io existante. Le compte (offre gratuite) est au plafond
+# d'applications : on MET À JOUR l'app par son id au lieu d'en créer une
+# nouvelle (sinon « maximum number of applications »). App créée le 2025-11,
+# id visible via l'API (PositClient) ou le dashboard shinyapps.io.
+APPID="${3:-18430225}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUNDLE="$(mktemp -d)"
@@ -42,6 +47,7 @@ ls -1 "$BUNDLE"
 # rsconnect depuis le venv du projet.
 "$ROOT/.venv/bin/rsconnect" deploy shiny "$BUNDLE" \
   --name "$COMPTE" \
+  --app-id "$APPID" \
   --title "$APPNAME" \
   --entrypoint app:app
 
