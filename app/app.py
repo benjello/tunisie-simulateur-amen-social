@@ -490,7 +490,11 @@ def server(input, output, session):
     def comparateur():
         if not input.calculer():
             return render.DataGrid(pd.DataFrame({"Info": ["Lancez un calcul"]}))
+        lang = _lang()
         revenu = float(input.revenu() or 0)
+        col_annee = t("col_annee", lang)
+        col_alloc = t("allocation_familiale_non_contributive", lang)
+        col_total = t("col_total", lang)
         lignes = []
         for annee in range(2021, 2027):
             try:
@@ -499,12 +503,12 @@ def server(input, output, session):
                 continue
             lignes.append(
                 {
-                    "Année": annee,
+                    col_annee: annee,
                     "TMP": _fmt(res.get("transfert_monetaire_permanent"), "DT"),
-                    "Alloc. familiale NC": _fmt(
+                    col_alloc: _fmt(
                         res.get("allocation_familiale_non_contributive"), "DT"
                     ),
-                    "Total aides": _fmt(res.get("total_aides_mensuel"), "DT"),
+                    col_total: _fmt(res.get("total_aides_mensuel"), "DT"),
                 }
             )
         return render.DataGrid(pd.DataFrame(lignes), width="100%")

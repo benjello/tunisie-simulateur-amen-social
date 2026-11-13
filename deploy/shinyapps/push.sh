@@ -36,6 +36,7 @@ cp "$ROOT/app/app.py" "$BUNDLE/app_main.py"
 # Modules de l'app (dont la réforme corrective, indispensable au TMP).
 cp "$ROOT/app/openfisca_client.py" "$BUNDLE/openfisca_client.py"
 cp "$ROOT/app/reform.py" "$BUNDLE/reform.py"
+cp "$ROOT/app/i18n.py" "$BUNDLE/i18n.py"
 # Dépendances.
 cp "$ROOT/deploy/shinyapps/requirements.txt" "$BUNDLE/requirements.txt"
 # Contrainte de version Python (évite le warning et fige la cible).
