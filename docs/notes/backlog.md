@@ -28,6 +28,17 @@ session). Mis à jour à chaque point d'arrêt.
 
 **Plans de référence** : `docs/notes/ameliorations-avancees.md` (7 axes A-G) et `docs/notes/plan-a-c-actions.md` (décomposition A/C).
 
+## ⚠️ Piège de déploiement (à retenir)
+
+Le bundle shinyapps est **plat** et ne contient que les fichiers copiés
+explicitement par `deploy/shinyapps/push.sh` **et** `.github/workflows/deploy.yml`.
+**Tout nouveau module local de `app/` importé par l'app doit être ajouté aux
+deux** (sinon HTTP 500 en prod alors que le CD affiche « success » — le
+« success » ne garantit que l'upload, pas l'exécution). Fichiers actuels du
+bundle : `app.py` (entrée), `app_main.py`, `openfisca_client.py`, `reform.py`,
+`i18n.py`, `requirements.txt`. **Test avant push** : assembler un dossier plat et
+`python -c "import app"` (voir la commande dans l'historique).
+
 ## Prochaines étapes conseillées (ordre)
 
 1. Finir l'**entonnoir** (en cours) + tester + déployer.
