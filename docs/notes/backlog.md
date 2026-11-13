@@ -3,6 +3,28 @@
 Reports durables (ne doivent vivre ni dans la conversation ni dans une liste de
 session). Mis à jour à chaque point d'arrêt.
 
+## À remonter en amont (openfisca-tunisia) — nouveaux (axe A)
+
+- [ ] **`pnafn_eligible` jamais déclarée** : les allocations familiales non
+  contributives la lisent, mais `pnafn.py` ne déclare aucune variable →
+  `VariableNotFoundError`. Contournée par `app/reform.py` (entrée). Même famille
+  de défaut que `amen_social_score_decile`.
+- [ ] **Bug `allocation_familiale_non_contributive_6_18`** : tranche d'âge
+  `(6 <= age) * (age >= 18)` (seuls les 18 ans et plus) au lieu de `age <= 18`.
+  Corrigé dans `app/reform.py` ; à remonter.
+- [ ] **Incohérence date formule/paramètre** : `allocation_familiale_non_contributive_0_5`
+  a une `formula_2020_06`, mais le paramètre `allocation_familiale` ne débute
+  qu'au 2022-04-08 → `ParameterNotFoundError` pour 2020-06 → 2022-03. Soit avancer
+  le paramètre, soit retarder la formule. (Le simulateur contourne en renvoyant
+  « — » hors période valide.)
+- [ ] **`amg_1` / `amg_2` sans formule d'éligibilité** (entrées) : l'éligibilité
+  santé AMG n'est pas modélisée. Exposées en saisie dans le simulateur.
+- [ ] **Bug latent `_calculate_local` (simulateurs paie/pension)** : le client
+  local prenait toujours l'index `[0]` du tableau calculé — faux dès qu'il y a
+  plusieurs membres pour une variable Individu. Corrigé ici ; le même patron
+  existe dans `../tunisie-simulateur-paie` et `../tunisie-simulateur-pension`
+  (sans conséquence tant qu'il n'y a qu'un individu, mais à corriger par sécurité).
+
 ## À remonter en amont (openfisca-tunisia)
 
 - [x] **Correctif Amen social** appliqué dans la source `../openfisca-tunisia`

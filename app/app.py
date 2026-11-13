@@ -36,12 +36,14 @@ HANDICAP_LIBELLE = {v: k for k, v in HANDICAP.items()}
 
 
 def _grille_enfants(n: int) -> pd.DataFrame:
-    """Grille initiale de n enfants (âge, étudiant, handicap)."""
+    """Grille initiale de n enfants (âge, étudiant, handicap, flags santé)."""
     return pd.DataFrame(
         {
             "Âge": [10] * n,
             "Étudiant": ["non"] * n,
             "Handicap": ["Aucun"] * n,
+            "Gluten": ["non"] * n,
+            "Xeroderma": ["non"] * n,
         }
     )
 
@@ -69,6 +71,11 @@ app_ui = ui.page_sidebar(
             11, min=1, max=11, step=1,
         ),
         ui.hr(),
+        ui.markdown("**Cartes / programmes détenus** (saisie)"),
+        ui.input_checkbox("amg1", "Titulaire carte AMG1 (gratuité des soins)", False),
+        ui.input_checkbox("amg2", "Titulaire carte AMG2 (tarif réduit)", False),
+        ui.input_checkbox("pnafn", "Bénéficiaire PNAFN", False),
+        ui.hr(),
         ui.input_action_button("calculer", "Calculer", class_="btn-primary"),
         width=360,
     ),
@@ -78,12 +85,15 @@ app_ui = ui.page_sidebar(
     ui.panel_conditional(
         "input.nb_enfants > 0",
         ui.card(
-            ui.card_header("Enfants (éditable : âge, étudiant oui/non, handicap)"),
+            ui.card_header(
+                "Enfants (éditable : âge, étudiant, handicap, gluten, xeroderma)"
+            ),
             ui.output_data_frame("grille"),
             ui.markdown(
                 "*Handicap : « Aucun », « Léger » ou « Lourd ». Un enfant à charge "
                 "est compté de 6 à 18 ans (25 ans si étudiant), ou à tout âge s'il "
-                "est lourdement handicapé.*"
+                "est lourdement handicapé. Gluten / Xeroderma : « oui »/« non » "
+                "(allocations catégorielles de santé).*"
             ),
         ),
     ),
@@ -150,11 +160,19 @@ def server(input, output, session):
             return []
         df = grille.data_view()
         enfants = []
+        def _oui(valeur) -> bool:
+            return str(valeur).strip().lower() in ("oui", "yes", "true", "1")
+
         for _, r in df.iterrows():
-            etu = str(r["Étudiant"]).strip().lower() in ("oui", "yes", "true", "1")
             handicap = HANDICAP_LIBELLE.get(str(r["Handicap"]).strip(), 0)
             enfants.append(
-                {"age": int(r["Âge"]), "etudiant": etu, "handicap": handicap}
+                {
+                    "age": int(r["Âge"]),
+                    "etudiant": _oui(r["Étudiant"]),
+                    "handicap": handicap,
+                    "allergie_gluten": _oui(r.get("Gluten", "non")),
+                    "xeroderma": _oui(r.get("Xeroderma", "non")),
+                }
             )
         return enfants
 
@@ -181,6 +199,9 @@ def server(input, output, session):
             residence_secondaire=bool(input.residence()),
             achat_onereux=bool(input.achat()),
             score_decile=int(input.decile() or 11),
+            amg1=bool(input.amg1()),
+            amg2=bool(input.amg2()),
+            pnafn=bool(input.pnafn()),
         )
         try:
             return ("ok", calculer(situation, annee=annee))
@@ -219,9 +240,20 @@ def server(input, output, session):
                 class_="alert alert-info",
             )
 
+        total = res.get("total_aides_mensuel") or 0.0
+        bandeau_total = ui.div(
+            ui.markdown(
+                f"💰 **Total des aides du ménage : {total:,.3f} DT/mois**".replace(
+                    ",", " "
+                )
+                + f" (soit {total * 12:,.3f} DT/an).".replace(",", " ")
+            ),
+            class_="alert alert-primary",
+        )
+
         lignes = []
         for cle, libelle, unite in SORTIES:
-            fort = cle == "transfert_monetaire_permanent"
+            fort = cle in ("transfert_monetaire_permanent", "total_aides_mensuel")
             style = "font-weight:700;" if fort else ""
             lignes.append(
                 ui.tags.tr(
@@ -234,8 +266,9 @@ def server(input, output, session):
             )
         return ui.TagList(
             bandeau,
+            bandeau_total,
             ui.card(
-                ui.card_header("Résultat du ménage"),
+                ui.card_header("Résultat du ménage — toutes les aides"),
                 ui.tags.table(ui.tags.tbody(*lignes), class_="table table-sm"),
             ),
         )

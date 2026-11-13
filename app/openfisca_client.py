@@ -58,7 +58,11 @@ def _calculate_local(situation: dict) -> dict:
 
     resultat = {k: {} for k in situation}
     for collection, entites in situation.items():
-        for ident, variables in entites.items():
+        # L'index d'une instance dans le tableau calculé suit l'ordre d'insertion
+        # des entités (SimulationBuilder). Indispensable dès qu'il y a plusieurs
+        # membres : une variable Individu renvoie un tableau, et la valeur du
+        # k-ième membre est à l'index k (et non toujours 0).
+        for index, (ident, variables) in enumerate(entites.items()):
             resultat[collection][ident] = {}
             for variable, periodes in variables.items():
                 if not isinstance(periodes, dict):
@@ -67,7 +71,16 @@ def _calculate_local(situation: dict) -> dict:
                 resultat[collection][ident][variable] = {}
                 for periode, valeur in periodes.items():
                     if valeur is None:
-                        valeur = float(simulation.calculate(variable, periode)[0])
+                        # Résilience : une prestation dont la formule ou le
+                        # paramètre n'existe pas à cette période (ex. allocation
+                        # familiale NC avant 2022-04, gluten avant 2025) renvoie
+                        # None plutôt que de faire échouer tout le calcul.
+                        try:
+                            valeur = float(
+                                simulation.calculate(variable, periode)[index]
+                            )
+                        except Exception:
+                            valeur = None
                     resultat[collection][ident][variable][periode] = valeur
     return resultat
 
@@ -86,11 +99,31 @@ def _calculate(situation: dict, *, timeout: float = 30.0) -> dict:
 # `handicap == 3` pour qualifier un enfant handicapé à charge.
 HANDICAP = {0: "Aucun", 1: "Léger", 3: "Lourd"}
 
-# Variables de sortie demandées au moteur (clé -> libellé lisible, unité).
-SORTIES = [
+# --- Prestations du « bouquet » (aides avec montant) ---
+# Chaque aide : (clé, libellé, entité "menage"/"individu", année d'entrée en vigueur).
+# L'année sert à afficher « — » quand la prestation n'existe pas encore.
+AIDES = [
+    ("transfert_monetaire_permanent", "Transfert monétaire permanent", "menage", 2020),
+    (
+        "allocation_familiale_non_contributive",
+        "Allocation familiale (non contributive)",
+        "menage",
+        2020,
+    ),
+    ("allocation_allergie_gluten", "Allocation allergie au gluten", "individu", 2025),
+    (
+        "allocation_xeroderma_pigmentosum",
+        "Allocation xeroderma pigmentosum",
+        "individu",
+        2026,
+    ),
+]
+
+# Variables de diagnostic (éligibilité, revenu…) — toutes au niveau Ménage.
+DIAGNOSTIC = [
     ("amen_social_revenu", "Revenu mensuel du ménage (sens Amen)", "DT"),
     ("amen_social_presence_handicap_lourd", "Présence d'un handicap lourd", "bool"),
-    ("amen_social_eligible", "Éligible (critères primaires, décret 2020-317)", "bool"),
+    ("amen_social_eligible", "Éligible Amen (critères primaires, décret 2020-317)", "bool"),
     ("amen_social_enfants_a_charge", "Enfants à charge (sens Amen)", "int"),
     ("amen_social_enfants_handicapes_a_charge", "dont enfants handicapés", "int"),
     (
@@ -98,9 +131,20 @@ SORTIES = [
         "Éligible au transfert monétaire permanent",
         "bool",
     ),
-    ("transfert_monetaire_permanent", "Transfert monétaire permanent (mensuel)", "DT"),
 ]
-SORTIES_CLES = [cle for cle, _, _ in SORTIES]
+
+# Listes de requête au moteur (par entité).
+VARIABLES_MENAGE = [c for c, _, e, _ in AIDES if e == "menage"] + [
+    c for c, _, _ in DIAGNOSTIC
+]
+VARIABLES_INDIVIDU = [c for c, _, e, _ in AIDES if e == "individu"]
+
+# Liste d'affichage (diagnostic + aides + total), au format (clé, libellé, unité).
+SORTIES = (
+    DIAGNOSTIC
+    + [(c, lib, "DT") for c, lib, _, _ in AIDES]
+    + [("total_aides_mensuel", "TOTAL des aides (mensuel)", "DT")]
+)
 
 
 def construire_situation(
@@ -112,6 +156,9 @@ def construire_situation(
     residence_secondaire: bool = False,
     achat_onereux: bool = False,
     score_decile: int = 11,
+    amg1: bool = False,
+    amg2: bool = False,
+    pnafn: bool = False,
 ) -> dict:
     """Construit la situation JSON OpenFisca pour un ménage, sur janvier de `annee`.
 
@@ -149,18 +196,32 @@ def construire_situation(
 
     for j, enfant in enumerate(enfants):
         ident = f"enfant{j}"
-        individus[ident] = {
+        individu = {
             "age": {mois: int(enfant.get("age", 0))},
             "etudiant": {an: bool(enfant.get("etudiant", False))},
             "handicap": {an: int(enfant.get("handicap", 0))},
         }
+        if enfant.get("allergie_gluten"):
+            individu["allergie_gluten"] = {mois: True}
+        if enfant.get("xeroderma"):
+            individu["xeroderma_pigmentosum"] = {mois: True}
+        individus[ident] = individu
         roles_enfants.append(ident)
+
+    # Les aides individuelles (gluten, xeroderma) sont demandées sur chaque membre
+    # pour pouvoir les sommer sur le ménage à l'affichage.
+    for individu in individus.values():
+        for cle in VARIABLES_INDIVIDU:
+            individu[cle] = {mois: None}
 
     menage: dict = {
         "personne_de_reference": roles_reference,
         "amen_social_pas_de_residence_secondaire": {mois: not residence_secondaire},
         "amen_social_pas_d_achat_onereux": {mois: not achat_onereux},
         "amen_social_score_decile": {mois: int(score_decile)},
+        "amg_1": {mois: bool(amg1)},
+        "amg_2": {mois: bool(amg2)},
+        "pnafn_eligible": {mois: bool(pnafn)},
     }
     if roles_conjoint:
         menage["conjoint"] = roles_conjoint
@@ -168,18 +229,35 @@ def construire_situation(
         menage["enfants"] = roles_enfants
     if roles_autres:
         menage["autres"] = roles_autres
-    for cle in SORTIES_CLES:
+    for cle in VARIABLES_MENAGE:
         menage[cle] = {mois: None}
 
     return {"individus": individus, "menages": {"m0": menage}}
 
 
 def calculer(situation: dict, *, annee: int, timeout: float = 30.0) -> dict:
-    """Calcule la situation (local ou API) et renvoie les sorties (dict plat)."""
+    """Calcule la situation (local ou API) et renvoie les sorties (dict plat).
+
+    Les aides de niveau Individu (gluten, xeroderma) sont **sommées sur le
+    ménage**. Une clé `total_aides_mensuel` agrège toutes les prestations.
+    """
     mois = f"{annee}-01"
     data = _calculate(situation, timeout=timeout)
     menage = data["menages"]["m0"]
-    return {cle: menage.get(cle, {}).get(mois) for cle in SORTIES_CLES}
+    res = {cle: menage.get(cle, {}).get(mois) for cle in VARIABLES_MENAGE}
+    # Somme des aides individuelles sur tous les membres du ménage.
+    for cle in VARIABLES_INDIVIDU:
+        total = 0.0
+        for individu in data["individus"].values():
+            valeur = individu.get(cle, {}).get(mois)
+            if valeur is not None:
+                total += float(valeur)
+        res[cle] = total
+    # Total des aides du ménage (toutes prestations du bouquet).
+    res["total_aides_mensuel"] = sum(
+        float(res.get(cle) or 0.0) for cle, _, _, _ in AIDES
+    )
+    return res
 
 
 def api_disponible(timeout: float = 3.0) -> bool:

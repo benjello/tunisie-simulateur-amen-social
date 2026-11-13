@@ -12,13 +12,19 @@ OpenFisca-Tunisia. Mais, dans la version actuelle du modèle
    `supplements.amen_social_enfants_a_charge`, alors que le paramètre réel
    s'appelle `supplements.enfant_a_charge` → `ParameterNotFoundError`.
 
-Cette réforme corrige les deux points **sans changer le barème** : elle déclare
-`amen_social_score_decile` comme variable d'entrée (décile du score de ciblage,
-1 = ménage le plus pauvre ; défaut 11 = hors ciblage) et redéfinit la formule du
-TMP avec le bon nom de paramètre. Le calcul reste celui du modèle.
+Cette réforme corrige ces points **sans changer le barème** et expose, pour le
+« bouquet » de prestations (axe A), quelques variables d'entrée manquantes :
 
-Les deux correctifs doivent être remontés en amont (voir
-`docs/notes/desaccords.md` et `docs/notes/backlog.md`).
+- déclare `amen_social_score_decile` (décile du score de ciblage ; défaut 11) ;
+- redéfinit la formule du TMP avec le bon nom de paramètre ;
+- ajoute une `formula_2020` à l'éligibilité du TMP (critères primaires avant 2022) ;
+- déclare `pnafn_eligible` (entrée), lue par les allocations familiales non
+  contributives mais non déclarée dans le modèle (`pnafn.py` est vide) ;
+- corrige `allocation_familiale_non_contributive_6_18`, dont la tranche d'âge
+  était `(6 <= age) * (age >= 18)` (seuls les 18 ans et plus) au lieu de 6-18 ans.
+
+Le calcul reste celui du modèle. Tous les correctifs doivent être remontés en
+amont (voir `docs/notes/desaccords.md` et `docs/notes/backlog.md`).
 """
 
 from __future__ import annotations
@@ -38,6 +44,41 @@ class amen_social_score_decile(Variable):
     definition_period = MONTH
     # Variable d'entrée : score issu du modèle de ciblage (proxy-means test).
     # Non modélisée dans openfisca-tunisia ; fournie par l'utilisateur.
+
+
+class pnafn_eligible(Variable):
+    value_type = bool
+    entity = Menage
+    default_value = False
+    label = "Bénéficiaire du PNAFN (programme national d'aide aux familles nécessiteuses)"
+    definition_period = MONTH
+    # Variable d'entrée : l'éligibilité PNAFN n'est pas modélisée dans
+    # openfisca-tunisia (pnafn.py ne déclare aucune variable), alors que les
+    # allocations familiales non contributives la lisent. On la déclare en
+    # entrée (titulaire d'une carte PNAFN, oui/non). À remonter en amont.
+
+
+class allocation_familiale_non_contributive_6_18(Variable):
+    value_type = float
+    entity = Menage
+    label = "Allocation familiale (6-18 ans) pour les ménages non affiliés à un régime de sécurité sociale"
+    definition_period = MONTH
+
+    def formula_2022_07(menage, period, parameters):
+        # Correctif : le modèle amont compte `(6 <= age) * (age >= 18)`, qui ne
+        # retient que les 18 ans et plus. La tranche visée est 6 à 18 ans inclus.
+        age = menage.members("age", period)
+        eligible = menage(
+            "eligible_allocation_familiale_non_contributive_6_18", period
+        )
+        enfant_a_charge_6_18 = (6 <= age) * (age <= 18)
+        enfants_eligibles = eligible * menage.sum(
+            enfant_a_charge_6_18, role=Menage.ENFANT
+        )
+        allocation_familiale = parameters(
+            period
+        ).prestations.non_contributives.allocation_familiale
+        return enfants_eligibles * allocation_familiale
 
 
 class transfert_monetaire_permanent_eligibilite_score(Variable):
@@ -87,5 +128,7 @@ class amen_social_corrections(Reform):
 
     def apply(self):
         self.add_variable(amen_social_score_decile)
+        self.add_variable(pnafn_eligible)
         self.update_variable(transfert_monetaire_permanent_eligibilite_score)
         self.update_variable(transfert_monetaire_permanent)
+        self.update_variable(allocation_familiale_non_contributive_6_18)
