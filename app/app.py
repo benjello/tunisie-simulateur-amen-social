@@ -332,6 +332,45 @@ def server(input, output, session):
             ui.tags.ul(*items),
         )
 
+        # D3 — anti-non-recours : comment faire valoir ses droits.
+        ouvre_des_droits = explication["eligible"] or (
+            (res.get("total_aides_mensuel") or 0.0) > 0
+        )
+        if ouvre_des_droits:
+            carte_demarche = ui.card(
+                ui.card_header("✅ Comment faire valoir vos droits"),
+                ui.markdown(
+                    "Votre foyer **semble ouvrir des droits**. Cette estimation "
+                    "est indicative ; pour une décision officielle :\n\n"
+                    "- Déposez une demande à l'**unité locale de promotion sociale** "
+                    "de votre délégation (direction régionale des affaires "
+                    "sociales), ou inscrivez-vous au **registre social / "
+                    "plateforme Amen**.\n"
+                    "- Prévoyez une **pièce d'identité (CIN)** et les justificatifs "
+                    "de **revenus** et de **composition du foyer**.\n"
+                    "- Un **identifiant social unique** permet de **suivre la "
+                    "demande** et, en cas de refus, de déposer un **recours**.\n\n"
+                    "*Réf. : décret gouvernemental n° 2020-317 ; ministère des "
+                    "Affaires sociales (social.gov.tn).*"
+                ),
+                class_="border-success",
+            )
+        else:
+            carte_demarche = ui.card(
+                ui.card_header("ℹ️ Que faire ensuite"),
+                ui.markdown(
+                    "D'après vos réponses, votre foyer **ne semble pas remplir "
+                    "les critères** cette année. Vous pouvez néanmoins :\n\n"
+                    "- vous **inscrire au registre social** (votre situation peut "
+                    "évoluer, et l'inscription ouvre d'autres services) ;\n"
+                    "- demander un **réexamen / recours** auprès de l'unité locale "
+                    "de promotion sociale si vous estimez l'évaluation inexacte.\n\n"
+                    "*Cette estimation est indicative et ne remplace pas "
+                    "l'évaluation officielle.*"
+                ),
+                class_="border-info",
+            )
+
         total = res.get("total_aides_mensuel") or 0.0
         bandeau_total = ui.div(
             ui.markdown(
@@ -360,6 +399,7 @@ def server(input, output, session):
             bandeau,
             bandeau_total,
             carte_explication,
+            carte_demarche,
             ui.card(
                 ui.card_header("Résultat du ménage — toutes les aides"),
                 ui.tags.table(ui.tags.tbody(*lignes), class_="table table-sm"),
