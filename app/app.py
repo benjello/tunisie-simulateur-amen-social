@@ -28,6 +28,7 @@ from openfisca_client import (
     SORTIES,
     api_disponible,
     calculer,
+    calculer_tmp_reforme,
     construire_situation,
     expliquer_eligibilite,
 )
@@ -157,6 +158,16 @@ app_ui = ui.page_fillable(
             value="p_comp",
         ),
         ui.accordion_panel(
+            "Simuler une réforme du barème",
+            ui.output_ui("reforme_help_ui"),
+            ui.input_slider("ref_base", "Allocation de base réformée (DT/mois)",
+                            min=0, max=600, value=260, step=10),
+            ui.input_slider("ref_supp", "Supplément réformé par enfant (DT)",
+                            min=0, max=50, value=10, step=5),
+            ui.output_ui("reforme_effet"),
+            value="p_reforme",
+        ),
+        ui.accordion_panel(
             "Détails (toutes les variables calculées)",
             ui.output_data_frame("details"),
             value="p_details",
@@ -232,7 +243,10 @@ def server(input, output, session):
         ui.update_accordion_panel("form_acc", "p_biens", title=t("step_biens", lang))
         ui.update_accordion_panel("form_acc", "p_avance", title=t("step_avance", lang))
         ui.update_accordion_panel("acc_details", "p_comp", title=t("comparateur_header", lang))
+        ui.update_accordion_panel("acc_details", "p_reforme", title=t("reforme_titre", lang))
         ui.update_accordion_panel("acc_details", "p_details", title=t("details_header", lang))
+        ui.update_slider("ref_base", label=t("reforme_base", lang))
+        ui.update_slider("ref_supp", label=t("reforme_supp", lang))
         # Sens de lecture (RTL en arabe).
         direction = "rtl" if lang == "ar" else "ltr"
         session.send_custom_message("setdir", {"dir": direction, "lang": lang})
@@ -264,6 +278,50 @@ def server(input, output, session):
     @render.ui
     def footer_ui():
         return ui.markdown(t("footer", _lang()))
+
+    @render.ui
+    def reforme_help_ui():
+        return ui.markdown(t("reforme_help", _lang()))
+
+    @render.ui
+    def reforme_effet():
+        statut, contenu = resultat()
+        lang = _lang()
+        if statut != "ok":
+            return ui.markdown("—")
+        annee = int(input.annee())
+        tmp_actuel = contenu.get("transfert_monetaire_permanent") or 0.0
+        try:
+            sit = _situation(float(input.revenu() or 0), annee)
+            tmp_ref = calculer_tmp_reforme(
+                sit, annee=annee,
+                allocation_base=float(input.ref_base()),
+                supplement_enfant=float(input.ref_supp()),
+            ) or 0.0
+        except RuntimeError as err:
+            return ui.div(ui.markdown(str(err)), class_="alert alert-warning")
+        ecart = tmp_ref - tmp_actuel
+
+        def num(x):
+            return f"{x:,.3f}".replace(",", " ")
+
+        signe = "+" if ecart >= 0 else "−"
+        couleur = "text-success" if ecart > 0 else ("text-danger" if ecart < 0 else "")
+        unite = " \u062f.\u062a" if lang == "ar" else " DT"
+        lignes = [
+            (t("reforme_actuel", lang), num(tmp_actuel) + unite, ""),
+            (t("reforme_nouveau", lang), num(tmp_ref) + unite, "font-weight:700;"),
+            (t("reforme_ecart", lang), f"{signe} {num(abs(ecart))}{unite}/mois", ""),
+        ]
+        rows = [
+            ui.tags.tr(
+                ui.tags.td(lib, style=st),
+                ui.tags.td(val, style=f"text-align:right;{st}",
+                           class_=couleur if lib == t("reforme_ecart", lang) else ""),
+            )
+            for lib, val, st in lignes
+        ]
+        return ui.tags.table(ui.tags.tbody(*rows), class_="table table-sm")
 
     @render.ui
     def statut_api():

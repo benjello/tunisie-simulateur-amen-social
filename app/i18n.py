@@ -96,6 +96,14 @@ _STR: dict[str, dict[str, str]] = {
     "allocation_allergie_gluten": {"fr": "Allocation allergie au gluten", "ar": "منحة حساسية الغلوتين"},
     "allocation_xeroderma_pigmentosum": {"fr": "Allocation xeroderma pigmentosum", "ar": "منحة مرض جفاف الجلد المصطبغ"},
     "total_aides_mensuel": {"fr": "TOTAL des aides (mensuel)", "ar": "مجموع المساعدات (شهري)"},
+    # F1 — simulation de réforme
+    "reforme_titre": {"fr": "Simuler une réforme du barème (transfert monétaire permanent)", "ar": "محاكاة إصلاح السلّم (التحويل النقدي القار)"},
+    "reforme_help": {"fr": "Déplacez les curseurs pour voir l'effet d'un autre barème sur **ce** foyer. Le calcul reste fait par le moteur.", "ar": "حرّك المؤشرات لرؤية أثر سلّم آخر على **هذه** الأسرة. يبقى الحساب بالمحرك."},
+    "reforme_base": {"fr": "Allocation de base réformée (DT/mois)", "ar": "المنحة الأساسية بعد الإصلاح (د.ت/شهر)"},
+    "reforme_supp": {"fr": "Supplément réformé par enfant à charge (DT)", "ar": "الزيادة بعد الإصلاح لكل طفل معال (د.ت)"},
+    "reforme_actuel": {"fr": "TMP actuel (barème en vigueur)", "ar": "التحويل الحالي (السلّم الجاري)"},
+    "reforme_nouveau": {"fr": "TMP sous la réforme", "ar": "التحويل حسب الإصلاح"},
+    "reforme_ecart": {"fr": "Écart mensuel", "ar": "الفارق الشهري"},
     # Pied de page
     "footer": {
         "fr": "Calculé par le moteur **OpenFisca-Tunisia** (prestations non contributives, programme Amen social), avec une réforme corrective. Montants **mensuels** (DT/mois). Réf. : décret 2020-317 du 19 mai 2020 ; loi organique n° 2019-10. Estimation indicative, sans valeur de décision administrative.",

@@ -261,6 +261,46 @@ def calculer(situation: dict, *, annee: int, timeout: float = 30.0) -> dict:
     return res
 
 
+# Cache des TaxBenefitSystem réformés (axe F1), par (base, supplément).
+_TBS_REFORME: dict = {}
+
+
+def _get_tbs_reforme(allocation_base: float, supplement_enfant: float):
+    """TBS avec réforme paramétrique, posée **au-dessus** des corrections. Les
+    corrections (TBS de base) sont chargées une fois ; seule la réforme légère
+    est clonée par couple de valeurs (cache)."""
+    cle = (round(float(allocation_base), 3), round(float(supplement_enfant), 3))
+    tbs = _TBS_REFORME.get(cle)
+    if tbs is None:
+        from reform import make_param_reform
+
+        tbs = make_param_reform(*cle)(_get_tbs())
+        _TBS_REFORME[cle] = tbs
+    return tbs
+
+
+def calculer_tmp_reforme(
+    situation: dict, *, annee: int, allocation_base: float, supplement_enfant: float
+) -> float | None:
+    """Transfert monétaire permanent sous une réforme paramétrique (axe F1).
+
+    Mode **local** uniquement (la réforme n'est pas exposée via l'API HTTP).
+    Renvoie le TMP mensuel du ménage sous le barème (base + supplément) choisi.
+    """
+    if MODE != "local":
+        raise RuntimeError("La simulation de réforme nécessite OPENFISCA_MODE=local")
+    from openfisca_core.simulations import SimulationBuilder
+
+    tbs = _get_tbs_reforme(allocation_base, supplement_enfant)
+    simulation = SimulationBuilder().build_from_entities(tbs, situation)
+    try:
+        return float(
+            simulation.calculate("transfert_monetaire_permanent", f"{annee}-01")[0]
+        )
+    except Exception:
+        return None
+
+
 def expliquer_eligibilite(
     resultats: dict,
     *,

@@ -163,6 +163,31 @@ class transfert_monetaire_permanent(Variable):
         )
 
 
+def make_param_reform(allocation_base: float, supplement_enfant: float):
+    """Fabrique une réforme paramétrique (axe F1) : remplace l'allocation de base
+    et le supplément par enfant à charge du TMP par des valeurs choisies, pour
+    simuler l'effet d'un changement de barème. À appliquer **au-dessus** de
+    `amen_social_corrections`. Le calcul reste celui du moteur.
+    """
+    from openfisca_core.periods import period as make_period
+
+    def modifier(parameters):
+        node = parameters.prestations.non_contributives.amen_social
+        node.allocation_base.update(
+            period=make_period("year:2020:10"), value=float(allocation_base)
+        )
+        node.supplements.enfant_a_charge.update(
+            period=make_period("year:2020:10"), value=float(supplement_enfant)
+        )
+        return parameters
+
+    class ParamReform(Reform):
+        def apply(self):
+            self.modify_parameters(modifier_function=modifier)
+
+    return ParamReform
+
+
 class amen_social_corrections(Reform):
     """Déclare le décile de ciblage et corrige le nom de paramètre du TMP."""
 
