@@ -122,6 +122,7 @@ AIDES = [
 # Variables de diagnostic (éligibilité, revenu…) — toutes au niveau Ménage.
 DIAGNOSTIC = [
     ("amen_social_revenu", "Revenu mensuel du ménage (sens Amen)", "DT"),
+    ("amen_social_seuil_revenu", "Seuil de revenu applicable (critères primaires)", "DT"),
     ("amen_social_presence_handicap_lourd", "Présence d'un handicap lourd", "bool"),
     ("amen_social_eligible", "Éligible Amen (critères primaires, décret 2020-317)", "bool"),
     ("amen_social_enfants_a_charge", "Enfants à charge (sens Amen)", "int"),
@@ -258,6 +259,67 @@ def calculer(situation: dict, *, annee: int, timeout: float = 30.0) -> dict:
         float(res.get(cle) or 0.0) for cle, _, _, _ in AIDES
     )
     return res
+
+
+def expliquer_eligibilite(
+    resultats: dict,
+    *,
+    residence_secondaire: bool,
+    achat_onereux: bool,
+    score_decile: int,
+    decile_seuil: int = 1,
+) -> dict:
+    """Construit l'explication « pourquoi ce résultat » (axe C3).
+
+    Renvoie `{"eligible": bool, "voie": str|None, "raisons": [str]}`. S'appuie
+    sur les sorties déjà calculées (revenu, seuil applicable, éligibilités) et
+    sur les critères d'exclusion saisis.
+    """
+    revenu = resultats.get("amen_social_revenu")
+    seuil = resultats.get("amen_social_seuil_revenu")
+    eligible_primaire = bool(resultats.get("amen_social_eligible"))
+    tmp_eligible = bool(resultats.get("transfert_monetaire_permanent_eligible"))
+    par_decile = int(score_decile) <= int(decile_seuil)
+
+    def dt(x):
+        return "—" if x is None else f"{x:,.3f} DT".replace(",", " ")
+
+    raisons: list[str] = []
+    voie = None
+
+    if tmp_eligible:
+        if eligible_primaire:
+            voie = "critères primaires (décret 2020-317)"
+            if revenu is not None and seuil is not None:
+                raisons.append(
+                    f"Revenu du ménage {dt(revenu)} ≤ seuil applicable {dt(seuil)}."
+                )
+            raisons.append("Pas de résidence secondaire, pas d'achat onéreux récent.")
+        elif par_decile:
+            voie = "décile du score de ciblage"
+            raisons.append(
+                f"Classé au décile {int(score_decile)} du score de ciblage "
+                f"(≤ {int(decile_seuil)} ouvre le droit)."
+            )
+    else:
+        if residence_secondaire:
+            raisons.append("Exclu : le ménage possède une résidence secondaire.")
+        if achat_onereux:
+            raisons.append("Exclu : achat/vente onéreux récent (> 30 × SMIG).")
+        if revenu is not None and seuil is not None and revenu > seuil:
+            raisons.append(
+                f"Revenu du ménage {dt(revenu)} > seuil applicable {dt(seuil)} "
+                f"(dépasse de {dt(revenu - seuil)})."
+            )
+        if not par_decile:
+            raisons.append(
+                f"Non classé au décile {int(decile_seuil)} du ciblage "
+                f"(décile saisi : {int(score_decile)})."
+            )
+        if not raisons:
+            raisons.append("Aucun critère d'éligibilité rempli.")
+
+    return {"eligible": tmp_eligible, "voie": voie, "raisons": raisons}
 
 
 def api_disponible(timeout: float = 3.0) -> bool:

@@ -27,6 +27,7 @@ from openfisca_client import (
     api_disponible,
     calculer,
     construire_situation,
+    expliquer_eligibilite,
 )
 
 ANNEES = [str(a) for a in range(2020, 2027)]
@@ -240,6 +241,23 @@ def server(input, output, session):
                 class_="alert alert-info",
             )
 
+        explication = expliquer_eligibilite(
+            res,
+            residence_secondaire=bool(input.residence()),
+            achat_onereux=bool(input.achat()),
+            score_decile=int(input.decile() or 11),
+        )
+        items = [ui.tags.li(r) for r in explication["raisons"]]
+        titre_exp = (
+            f"Pourquoi éligible — voie : {explication['voie']}"
+            if explication["eligible"]
+            else "Pourquoi non éligible"
+        )
+        carte_explication = ui.card(
+            ui.card_header(titre_exp),
+            ui.tags.ul(*items),
+        )
+
         total = res.get("total_aides_mensuel") or 0.0
         bandeau_total = ui.div(
             ui.markdown(
@@ -267,6 +285,7 @@ def server(input, output, session):
         return ui.TagList(
             bandeau,
             bandeau_total,
+            carte_explication,
             ui.card(
                 ui.card_header("Résultat du ménage — toutes les aides"),
                 ui.tags.table(ui.tags.tbody(*lignes), class_="table table-sm"),

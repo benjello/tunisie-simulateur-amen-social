@@ -29,6 +29,7 @@ amont (voir `docs/notes/desaccords.md` et `docs/notes/backlog.md`).
 
 from __future__ import annotations
 
+import numpy as np
 from openfisca_core.periods import MONTH
 from openfisca_core.reforms import Reform
 from openfisca_core.variables import Variable
@@ -44,6 +45,45 @@ class amen_social_score_decile(Variable):
     definition_period = MONTH
     # Variable d'entrée : score issu du modèle de ciblage (proxy-means test).
     # Non modélisée dans openfisca-tunisia ; fournie par l'utilisateur.
+
+
+class amen_social_seuil_revenu(Variable):
+    value_type = float
+    entity = Menage
+    label = "Seuil de revenu mensuel d'éligibilité Amen (critères primaires)"
+    definition_period = MONTH
+
+    def formula_2020(menage, period, parameters):
+        # Reproduit le seuil utilisé par `amen_social_eligible` (décret 2020-317,
+        # art. 5) : multiple du SMIG 48 h selon la taille du ménage, majoré en
+        # présence d'un handicap lourd. Exposé pour l'explication d'éligibilité.
+        smig_mensuel = parameters(period.start).marche_travail.smig_48h_mensuel
+        seuil = parameters(period).prestations.non_contributives.amen_social.eligibilite
+        taille = menage.nb_persons()
+        handicap = menage("amen_social_presence_handicap_lourd", period)
+        conditions = [
+            taille == 1,
+            taille == 2,
+            (taille == 3) + (taille == 4),
+            taille >= 5,
+        ]
+        sans_handicap = [
+            smig_mensuel * seuil.un_membre,
+            smig_mensuel * seuil.deux_membres,
+            smig_mensuel * seuil.trois_quatre_membres,
+            smig_mensuel * seuil.plus_de_cinq_membres,
+        ]
+        avec_handicap = [
+            smig_mensuel * seuil.handicap_lourd.un_membre,
+            smig_mensuel * seuil.handicap_lourd.deux_membres,
+            smig_mensuel * seuil.handicap_lourd.trois_quatre_membres,
+            smig_mensuel * seuil.handicap_lourd.plus_de_cinq_membres,
+        ]
+        return np.where(
+            handicap,
+            np.select(conditions, avec_handicap, default=0.0),
+            np.select(conditions, sans_handicap, default=0.0),
+        )
 
 
 class pnafn_eligible(Variable):
@@ -128,6 +168,7 @@ class amen_social_corrections(Reform):
 
     def apply(self):
         self.add_variable(amen_social_score_decile)
+        self.add_variable(amen_social_seuil_revenu)
         self.add_variable(pnafn_eligible)
         self.update_variable(transfert_monetaire_permanent_eligibilite_score)
         self.update_variable(transfert_monetaire_permanent)
