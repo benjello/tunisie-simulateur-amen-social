@@ -13,9 +13,7 @@ session). Mis à jour à chaque point d'arrêt.
 - **Axe C2/C4/C5** : export PDF (attestation), graphe (total des aides selon le revenu), comparateur par année. Dépendance matplotlib ajoutée. Commit `afde1e4`.
 - **Correctif amont** : PR openfisca-tunisia **#529** (branche `fix/amen-social-tmp`, 0.166), OPEN + mergeable + CI verte. En attente de merge + release PyPI → ensuite retirer la réforme.
 
-**En cours (pivot UX, session courante)** :
-
-- **Entonnoir / divulgation progressive** (axe D1) : restructurer la saisie (sidebar trop dense → surcharge cognitive) en parcours par étapes, questions en langage simple, jargon (décile, AMG) en « options avancées » repliées. Objectif : réduire la surcharge et les incompréhensions.
+- **Entonnoir / divulgation progressive** (axe D1) — **fait** : saisie restructurée en parcours par étapes (accordion pleine largeur ① Votre foyer / ② Vos ressources / ③ Logement et biens / ④ Options avancées repliées), questions en langage simple, boutons Oui/Non (plus clairs que des cases), jargon (décile, AMG, PNAFN) replié avec texte rassurant, grille des enfants auto-synchronisée (plus de bouton « générer »). `app/app.py` en `page_fillable`. Commit à suivre.
 
 **Différé (fait partiellement)** :
 

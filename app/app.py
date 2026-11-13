@@ -49,55 +49,98 @@ def _grille_enfants(n: int) -> pd.DataFrame:
     )
 
 
-app_ui = ui.page_sidebar(
-    ui.sidebar(
-        ui.input_select("annee", "Année", ANNEES, selected="2025"),
-        ui.input_numeric("nb_adultes", "Nombre d'adultes", 2, min=1, max=6, step=1),
-        ui.input_numeric("nb_enfants", "Nombre d'enfants", 2, min=0, max=10, step=1),
-        ui.input_action_button(
-            "generer", "Générer / réinitialiser les enfants",
-            class_="btn-secondary btn-sm",
-        ),
-        ui.hr(),
-        ui.input_numeric(
-            "revenu", "Revenu mensuel du ménage (DT)", 150, min=0, step=50
-        ),
-        ui.input_checkbox("residence", "Possède une résidence secondaire", False),
-        ui.input_checkbox(
-            "achat", "Achat/vente onéreux récent (> 30 × SMIG)", False
-        ),
-        ui.input_numeric(
-            "decile",
-            "Décile du score de ciblage (1 = plus pauvre ; 11 = hors ciblage)",
-            11, min=1, max=11, step=1,
-        ),
-        ui.hr(),
-        ui.markdown("**Cartes / programmes détenus** (saisie)"),
-        ui.input_checkbox("amg1", "Titulaire carte AMG1 (gratuité des soins)", False),
-        ui.input_checkbox("amg2", "Titulaire carte AMG2 (tarif réduit)", False),
-        ui.input_checkbox("pnafn", "Bénéficiaire PNAFN", False),
-        ui.hr(),
-        ui.input_action_button("calculer", "Calculer", class_="btn-primary"),
-        width=360,
-    ),
+app_ui = ui.page_fillable(
     ui.h3("Simulateur Amen social — Tunisie"),
-    ui.output_ui("statut_api"),
-    ui.output_ui("entete"),
-    ui.panel_conditional(
-        "input.nb_enfants > 0",
-        ui.card(
-            ui.card_header(
-                "Enfants (éditable : âge, étudiant, handicap, gluten, xeroderma)"
-            ),
-            ui.output_data_frame("grille"),
-            ui.markdown(
-                "*Handicap : « Aucun », « Léger » ou « Lourd ». Un enfant à charge "
-                "est compté de 6 à 18 ans (25 ans si étudiant), ou à tout âge s'il "
-                "est lourdement handicapé. Gluten / Xeroderma : « oui »/« non » "
-                "(allocations catégorielles de santé).*"
-            ),
-        ),
+    ui.markdown(
+        "Répondez aux questions ci-dessous : votre estimation s'affiche en bas. "
+        "Les **options avancées** sont facultatives."
     ),
+    ui.output_ui("statut_api"),
+    ui.accordion(
+        ui.accordion_panel(
+            "① Votre foyer",
+            ui.input_select("annee", "Année de la simulation", ANNEES, selected="2025"),
+            ui.input_numeric(
+                "nb_adultes",
+                "Combien d'adultes (18 ans et plus) vivent dans le foyer ?",
+                2, min=1, max=6, step=1,
+            ),
+            ui.input_numeric(
+                "nb_enfants",
+                "Combien d'enfants (moins de 18 ans) vivent dans le foyer ?",
+                2, min=0, max=10, step=1,
+            ),
+            ui.panel_conditional(
+                "input.nb_enfants > 0",
+                ui.markdown(
+                    "**Précisez chaque enfant** (double-cliquez pour éditer) : âge, "
+                    "étudiant, handicap (Aucun / Léger / Lourd), et maladies "
+                    "donnant droit à une aide (gluten, xeroderma)."
+                ),
+                ui.output_data_frame("grille"),
+            ),
+            value="p_foyer",
+        ),
+        ui.accordion_panel(
+            "② Vos ressources",
+            ui.input_numeric(
+                "revenu",
+                "Revenu mensuel total du foyer (salaires + pensions de tous les "
+                "membres), en dinars",
+                150, min=0, step=50,
+            ),
+            value="p_ressources",
+        ),
+        ui.accordion_panel(
+            "③ Votre logement et vos biens",
+            ui.input_radio_buttons(
+                "residence",
+                "Le foyer possède-t-il un deuxième logement ?",
+                {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
+            ),
+            ui.input_radio_buttons(
+                "achat",
+                "Un membre a-t-il acheté ou vendu un bien de grande valeur "
+                "récemment (voiture, terrain… de plus de 30 fois le SMIG) ?",
+                {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
+            ),
+            value="p_biens",
+        ),
+        ui.accordion_panel(
+            "④ Options avancées (facultatif)",
+            ui.markdown(
+                "*À remplir seulement si vous connaissez ces informations. "
+                "Sinon, laissez tel quel : ça ne bloque pas l'estimation.*"
+            ),
+            ui.input_radio_buttons(
+                "amg1", "Le foyer a-t-il une carte de soins gratuits (AMG1) ?",
+                {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
+            ),
+            ui.input_radio_buttons(
+                "amg2", "… ou une carte de soins à tarif réduit (AMG2) ?",
+                {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
+            ),
+            ui.input_radio_buttons(
+                "pnafn", "Le foyer est-il bénéficiaire du PNAFN ?",
+                {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
+            ),
+            ui.input_numeric(
+                "decile",
+                "Décile du score de ciblage social, si connu "
+                "(1 = plus modeste ; laissez 11 si inconnu)",
+                11, min=1, max=11, step=1,
+            ),
+            value="p_avance",
+        ),
+        id="form_acc",
+        open=["p_foyer", "p_ressources", "p_biens"],
+        multiple=True,
+    ),
+    ui.input_action_button(
+        "calculer", "Voir mon estimation", class_="btn-primary btn-lg"
+    ),
+    ui.hr(),
+    ui.output_ui("entete"),
     ui.output_ui("resume"),
     ui.download_button("export_pdf", "Télécharger l'attestation (PDF)", class_="btn-sm"),
     ui.card(
@@ -138,13 +181,30 @@ def _fmt(valeur, unite: str) -> str:
     return f"{valeur:,.3f} DT".replace(",", " ")
 
 
+def _oui(valeur) -> bool:
+    """Vrai si un bouton radio Oui/Non vaut « oui »."""
+    return str(valeur).strip().lower() == "oui"
+
+
 def server(input, output, session):
     enfants_rv = reactive.value(_grille_enfants(2))
 
     @reactive.effect
-    @reactive.event(input.generer)
-    def _regenere():
-        enfants_rv.set(_grille_enfants(int(input.nb_enfants() or 0)))
+    @reactive.event(input.nb_enfants)
+    def _ajuster_grille():
+        # La grille suit automatiquement le nombre d'enfants (pas de bouton) :
+        # on conserve les lignes déjà saisies et on ajoute/retire au besoin.
+        n = int(input.nb_enfants() or 0)
+        actuel = enfants_rv()
+        if len(actuel) == n:
+            return
+        if n < len(actuel):
+            enfants_rv.set(actuel.iloc[:n].reset_index(drop=True))
+        else:
+            surplus = _grille_enfants(n - len(actuel))
+            enfants_rv.set(
+                pd.concat([actuel, surplus], ignore_index=True)
+            )
 
     @render.data_frame
     def grille():
@@ -205,12 +265,12 @@ def server(input, output, session):
             nb_adultes=int(input.nb_adultes() or 1),
             enfants=_enfants_saisis(),
             revenu_mensuel=float(revenu),
-            residence_secondaire=bool(input.residence()),
-            achat_onereux=bool(input.achat()),
+            residence_secondaire=_oui(input.residence()),
+            achat_onereux=_oui(input.achat()),
             score_decile=int(input.decile() or 11),
-            amg1=bool(input.amg1()),
-            amg2=bool(input.amg2()),
-            pnafn=bool(input.pnafn()),
+            amg1=_oui(input.amg1()),
+            amg2=_oui(input.amg2()),
+            pnafn=_oui(input.pnafn()),
         )
 
     @reactive.calc
@@ -257,8 +317,8 @@ def server(input, output, session):
 
         explication = expliquer_eligibilite(
             res,
-            residence_secondaire=bool(input.residence()),
-            achat_onereux=bool(input.achat()),
+            residence_secondaire=_oui(input.residence()),
+            achat_onereux=_oui(input.achat()),
             score_decile=int(input.decile() or 11),
         )
         items = [ui.tags.li(r) for r in explication["raisons"]]
@@ -382,8 +442,8 @@ def server(input, output, session):
                 y -= 0.05
             explication = expliquer_eligibilite(
                 res,
-                residence_secondaire=bool(input.residence()),
-                achat_onereux=bool(input.achat()),
+                residence_secondaire=_oui(input.residence()),
+                achat_onereux=_oui(input.achat()),
                 score_decile=int(input.decile() or 11),
             )
             y -= 0.03
