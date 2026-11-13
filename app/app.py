@@ -99,7 +99,16 @@ app_ui = ui.page_sidebar(
         ),
     ),
     ui.output_ui("resume"),
+    ui.download_button("export_pdf", "Télécharger l'attestation (PDF)", class_="btn-sm"),
+    ui.card(
+        ui.card_header("Total des aides selon le revenu mensuel du ménage"),
+        ui.output_plot("courbe_aides", height="320px"),
+    ),
     ui.accordion(
+        ui.accordion_panel(
+            "Comparateur par année (évolution du barème, situation constante)",
+            ui.output_data_frame("comparateur"),
+        ),
         ui.accordion_panel(
             "Détails (toutes les variables calculées)",
             ui.output_data_frame("details"),
@@ -188,15 +197,14 @@ def server(input, output, session):
             f"**revenu** {input.revenu()} DT/mois."
         )
 
-    @reactive.calc
-    @reactive.event(input.calculer, ignore_none=False)
-    def resultat():
-        annee = int(input.annee())
-        situation = construire_situation(
+    def _situation(revenu: float, annee: int) -> dict:
+        """Construit une situation à partir des entrées courantes, pour un revenu
+        et une année donnés (réutilisé par le résumé, le graphe, le comparateur)."""
+        return construire_situation(
             annee=annee,
             nb_adultes=int(input.nb_adultes() or 1),
             enfants=_enfants_saisis(),
-            revenu_mensuel=float(input.revenu() or 0),
+            revenu_mensuel=float(revenu),
             residence_secondaire=bool(input.residence()),
             achat_onereux=bool(input.achat()),
             score_decile=int(input.decile() or 11),
@@ -204,7 +212,13 @@ def server(input, output, session):
             amg2=bool(input.amg2()),
             pnafn=bool(input.pnafn()),
         )
+
+    @reactive.calc
+    @reactive.event(input.calculer, ignore_none=False)
+    def resultat():
+        annee = int(input.annee())
         try:
+            situation = _situation(float(input.revenu() or 0), annee)
             return ("ok", calculer(situation, annee=annee))
         except httpx.HTTPError as erreur:
             return ("erreur", str(erreur))
@@ -291,6 +305,106 @@ def server(input, output, session):
                 ui.tags.table(ui.tags.tbody(*lignes), class_="table table-sm"),
             ),
         )
+
+    @render.plot(alt="Total des aides selon le revenu du ménage")
+    @reactive.event(input.calculer, ignore_none=False)
+    def courbe_aides():
+        import matplotlib.pyplot as plt
+
+        annee = int(input.annee())
+        revenus = list(range(0, 2001, 100))
+        totaux = []
+        for rev in revenus:
+            try:
+                res = calculer(_situation(rev, annee), annee=annee)
+                totaux.append(res.get("total_aides_mensuel") or 0.0)
+            except httpx.HTTPError:
+                totaux.append(0.0)
+        fig, ax = plt.subplots()
+        ax.plot(revenus, totaux, color="#2a7", linewidth=2)
+        ax.fill_between(revenus, totaux, color="#2a7", alpha=0.12)
+        ax.set_xlabel("Revenu mensuel du ménage (DT)")
+        ax.set_ylabel("Total des aides (DT/mois)")
+        ax.set_title(f"Année {annee}")
+        ax.grid(True, alpha=0.3)
+        return fig
+
+    @render.data_frame
+    def comparateur():
+        if not input.calculer():
+            return render.DataGrid(pd.DataFrame({"Info": ["Lancez un calcul"]}))
+        revenu = float(input.revenu() or 0)
+        lignes = []
+        for annee in range(2021, 2027):
+            try:
+                res = calculer(_situation(revenu, annee), annee=annee)
+            except httpx.HTTPError:
+                continue
+            lignes.append(
+                {
+                    "Année": annee,
+                    "TMP": _fmt(res.get("transfert_monetaire_permanent"), "DT"),
+                    "Alloc. familiale NC": _fmt(
+                        res.get("allocation_familiale_non_contributive"), "DT"
+                    ),
+                    "Total aides": _fmt(res.get("total_aides_mensuel"), "DT"),
+                }
+            )
+        return render.DataGrid(pd.DataFrame(lignes), width="100%")
+
+    @render.download(filename="attestation_amen_social.pdf")
+    def export_pdf():
+        import io
+
+        import matplotlib.pyplot as plt
+
+        statut, contenu = resultat()
+        fig, ax = plt.subplots(figsize=(8, 7))
+        ax.axis("off")
+        if statut != "ok":
+            ax.text(0.5, 0.5, "Aucune simulation calculée.", ha="center")
+        else:
+            res = contenu
+            ax.set_title(
+                f"Simulation Amen social — année {int(input.annee())}",
+                fontsize=14, fontweight="bold",
+            )
+            y = 0.92
+            for cle, libelle, unite in SORTIES:
+                fort = cle in (
+                    "transfert_monetaire_permanent",
+                    "total_aides_mensuel",
+                )
+                ax.text(0.05, y, libelle, fontsize=10,
+                        fontweight="bold" if fort else "normal")
+                ax.text(0.95, y, _fmt(res.get(cle), unite), fontsize=10, ha="right",
+                        fontweight="bold" if fort else "normal")
+                y -= 0.05
+            explication = expliquer_eligibilite(
+                res,
+                residence_secondaire=bool(input.residence()),
+                achat_onereux=bool(input.achat()),
+                score_decile=int(input.decile() or 11),
+            )
+            y -= 0.03
+            titre_exp = (
+                "Éligible — " + (explication["voie"] or "")
+                if explication["eligible"]
+                else "Non éligible"
+            )
+            ax.text(0.05, y, titre_exp, fontsize=11, fontweight="bold")
+            y -= 0.045
+            for r in explication["raisons"]:
+                ax.text(0.07, y, f"• {r}", fontsize=9)
+                y -= 0.04
+            ax.text(0.05, 0.02,
+                    "Calculé par OpenFisca-Tunisia — estimation indicative, sans "
+                    "valeur de décision administrative.",
+                    fontsize=8, style="italic", color="#666")
+        buf = io.BytesIO()
+        fig.savefig(buf, format="pdf")
+        plt.close(fig)
+        yield buf.getvalue()
 
     @render.data_frame
     def details():

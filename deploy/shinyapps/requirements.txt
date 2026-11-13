@@ -5,3 +5,4 @@ shiny>=1.0
 openfisca-tunisia>=0.159
 pandas>=2.0
 httpx>=0.27
+matplotlib>=3.8

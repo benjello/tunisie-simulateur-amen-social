@@ -12,6 +12,7 @@ dependencies = [
     "openfisca-core[web-api]>=43",
     "httpx>=0.27",
     "pandas>=2.0",
+    "matplotlib>=3.8",
 ]
 
 [project.urls]

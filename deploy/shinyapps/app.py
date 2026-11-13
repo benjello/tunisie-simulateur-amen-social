@@ -12,6 +12,7 @@ le même répertoire.
 import os
 
 os.environ.setdefault("OPENFISCA_MODE", "local")
+os.environ.setdefault("MPLBACKEND", "Agg")  # matplotlib sans affichage (PDF/graphe)
 
 # Les modules openfisca_client / reform sont copiés à côté de ce fichier.
 from app_main import app  # noqa: E402,F401
