@@ -22,6 +22,8 @@ import pandas as pd
 from shiny import App, reactive, render, ui
 
 from openfisca_client import (
+    AIDES,
+    DIAGNOSTIC,
     HANDICAP,
     SORTIES,
     api_disponible,
@@ -386,27 +388,49 @@ def server(input, output, session):
             class_="alert alert-primary",
         )
 
-        lignes = []
-        for cle, libelle, unite in SORTIES:
-            fort = cle in ("transfert_monetaire_permanent", "total_aides_mensuel")
-            style = "font-weight:700;" if fort else ""
-            lignes.append(
-                ui.tags.tr(
-                    ui.tags.td(libelle, style=style),
-                    ui.tags.td(
-                        _fmt(res.get(cle), unite),
-                        style=f"text-align:right;{style}",
-                    ),
+        def _table(entrees, fort_cles=()):
+            rows = []
+            for cle, libelle, unite in entrees:
+                fort = cle in fort_cles
+                style = "font-weight:700;" if fort else ""
+                rows.append(
+                    ui.tags.tr(
+                        ui.tags.td(libelle, style=style),
+                        ui.tags.td(
+                            _fmt(res.get(cle), unite),
+                            style=f"text-align:right;{style}",
+                        ),
+                    )
                 )
-            )
+            return ui.tags.table(ui.tags.tbody(*rows), class_="table table-sm")
+
+        # Mener avec les aides (ce que le foyer reçoit) ; reléguer le diagnostic
+        # technique (revenu, seuil, éligibilités intermédiaires) dans un repli.
+        aides_entrees = [(c, lib, "DT") for c, lib, _, _ in AIDES] + [
+            ("total_aides_mensuel", "TOTAL des aides (mensuel)", "DT")
+        ]
         return ui.TagList(
             bandeau,
             bandeau_total,
             carte_explication,
             carte_demarche,
             ui.card(
-                ui.card_header("Résultat du ménage — toutes les aides"),
-                ui.tags.table(ui.tags.tbody(*lignes), class_="table table-sm"),
+                ui.card_header("Vos aides"),
+                _table(
+                    aides_entrees,
+                    fort_cles=(
+                        "transfert_monetaire_permanent",
+                        "total_aides_mensuel",
+                    ),
+                ),
+            ),
+            ui.accordion(
+                ui.accordion_panel(
+                    "Détail du calcul (comment on arrive à ce résultat)",
+                    _table(list(DIAGNOSTIC)),
+                ),
+                open=False,
+                id="acc_diag",
             ),
         )
 
