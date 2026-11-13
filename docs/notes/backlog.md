@@ -13,6 +13,8 @@ session). Mis à jour à chaque point d'arrêt.
 - **Axe C2/C4/C5** : export PDF (attestation), graphe (total des aides selon le revenu), comparateur par année. Dépendance matplotlib ajoutée. Commit `afde1e4`.
 - **Correctif amont** : PR openfisca-tunisia **#529** (branche `fix/amen-social-tmp`, 0.166), OPEN + mergeable + CI verte. En attente de merge + release PyPI → ensuite retirer la réforme.
 
+- **Anti-non-recours** (axe D3) — **fait** : carte « Comment faire valoir vos droits » (démarche officielle : unité locale de promotion sociale / registre social Amen, pièces, identifiant unique, recours) ou « Que faire ensuite » si non éligible. Sourcé (décret 2020-317, social.gov.tn).
+- **Estimation instantanée** — **fait** : le résumé se recalcule à chaque réponse (plus besoin de cliquer) ; le bouton ne sert plus qu'au détail lourd (graphique + comparateur).
 - **Entonnoir / divulgation progressive** (axe D1) — **fait** : saisie restructurée en parcours par étapes (accordion pleine largeur ① Votre foyer / ② Vos ressources / ③ Logement et biens / ④ Options avancées repliées), questions en langage simple, boutons Oui/Non (plus clairs que des cases), jargon (décile, AMG, PNAFN) replié avec texte rassurant, grille des enfants auto-synchronisée (plus de bouton « générer »). `app/app.py` en `page_fillable`. Commit à suivre.
 
 **Différé (fait partiellement)** :

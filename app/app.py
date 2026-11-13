@@ -136,13 +136,17 @@ app_ui = ui.page_fillable(
         open=["p_foyer", "p_ressources", "p_biens"],
         multiple=True,
     ),
-    ui.input_action_button(
-        "calculer", "Voir mon estimation", class_="btn-primary btn-lg"
-    ),
     ui.hr(),
     ui.output_ui("entete"),
+    ui.markdown("### Votre estimation"),
     ui.output_ui("resume"),
     ui.download_button("export_pdf", "Télécharger l'attestation (PDF)", class_="btn-sm"),
+    ui.hr(),
+    ui.input_action_button(
+        "calculer",
+        "Afficher le graphique et le comparateur",
+        class_="btn-secondary",
+    ),
     ui.card(
         ui.card_header("Total des aides selon le revenu mensuel du ménage"),
         ui.output_plot("courbe_aides", height="320px"),
@@ -274,8 +278,8 @@ def server(input, output, session):
         )
 
     @reactive.calc
-    @reactive.event(input.calculer, ignore_none=False)
     def resultat():
+        # Estimation **instantanée** : se recalcule à chaque réponse, sans clic.
         annee = int(input.annee())
         try:
             situation = _situation(float(input.revenu() or 0), annee)
