@@ -3,6 +3,33 @@
 Reports durables (ne doivent vivre ni dans la conversation ni dans une liste de
 session). Mis à jour à chaque point d'arrêt.
 
+## État de session (2025-11, relais)
+
+**Livré et déployé** (app en ligne : https://benjello.shinyapps.io/simulateur-amen-social-tunisie/ ; CD GitHub Actions au vert, épinglé `--app-id 18430225`) :
+
+- **v1** : éligibilité + montant du transfert monétaire permanent (TMP), via `app/reform.py` (réforme corrective ; openfisca-tunisia PyPI = 0.164, encore buggé).
+- **Axe A** (bouquet) : allocations familiales non contributives (0-5, 6-18 corrigée), allocations catégorielles (gluten, xeroderma), **total des aides** (mensuel + annuel). Entrées cartes AMG1/AMG2/PNAFN + flags santé par enfant. Commit `53ed3e4`.
+- **Axe C3** : explication « pourquoi éligible/non » (seuil applicable via variable `amen_social_seuil_revenu`, voie retenue, critères bloquants). Commit `712fd9e`.
+- **Axe C2/C4/C5** : export PDF (attestation), graphe (total des aides selon le revenu), comparateur par année. Dépendance matplotlib ajoutée. Commit `afde1e4`.
+- **Correctif amont** : PR openfisca-tunisia **#529** (branche `fix/amen-social-tmp`, 0.166), OPEN + mergeable + CI verte. En attente de merge + release PyPI → ensuite retirer la réforme.
+
+**En cours (pivot UX, session courante)** :
+
+- **Entonnoir / divulgation progressive** (axe D1) : restructurer la saisie (sidebar trop dense → surcharge cognitive) en parcours par étapes, questions en langage simple, jargon (décile, AMG) en « options avancées » repliées. Objectif : réduire la surcharge et les incompréhensions.
+
+**Différé (fait partiellement)** :
+
+- **Axe C1 bilingue FR/AR + RTL** : `app/i18n.py` **créé** (dictionnaire FR/AR complet des libellés) mais **non câblé** dans `app/app.py` (reste : sélecteur de langue, `ui.update_*` des libellés sur changement de langue, bascule RTL, lecture de `t(cle, lang)` dans les sorties). Patron : `../tunisie-simulateur-paie/app/app.py` (fonction `_appliquer_langue`, lignes ~176-225).
+
+**Plans de référence** : `docs/notes/ameliorations-avancees.md` (7 axes A-G) et `docs/notes/plan-a-c-actions.md` (décomposition A/C).
+
+## Prochaines étapes conseillées (ordre)
+
+1. Finir l'**entonnoir** (en cours) + tester + déployer.
+2. Câbler **C1 FR/AR** (i18n.py déjà prêt).
+3. Vagues suivantes du plan : D3 anti-non-recours, score PMT (axe B), réformes paramétriques (F1).
+4. Quand openfisca-tunisia 0.166 est sur PyPI : retirer `app/reform.py`, borne `>=0.166`, basculer tests TMP sur modèle nu.
+
 ## À remonter en amont (openfisca-tunisia) — nouveaux (axe A)
 
 - [ ] **`pnafn_eligible` jamais déclarée** : les allocations familiales non
