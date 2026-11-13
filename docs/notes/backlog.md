@@ -18,9 +18,13 @@ session). Mis à jour à chaque point d'arrêt.
 - **Estimation instantanée** — **fait** : le résumé se recalcule à chaque réponse (plus besoin de cliquer) ; le bouton ne sert plus qu'au détail lourd (graphique + comparateur).
 - **Entonnoir / divulgation progressive** (axe D1) — **fait** : saisie restructurée en parcours par étapes (accordion pleine largeur ① Votre foyer / ② Vos ressources / ③ Logement et biens / ④ Options avancées repliées), questions en langage simple, boutons Oui/Non (plus clairs que des cases), jargon (décile, AMG, PNAFN) replié avec texte rassurant, grille des enfants auto-synchronisée (plus de bouton « générer »). `app/app.py` en `page_fillable`. Commit à suivre.
 
-**Différé (fait partiellement)** :
+- **Axe C1 bilingue FR/AR + RTL** — **fait** : sélecteur de langue, bascule **RTL** (message custom JS `setdir`), `ui.update_*` des libellés d'entrées + choix Oui/Non + titres de panneaux sur changement de langue, textes statiques en `output_ui`, et sorties dynamiques (en-tête, bannières, explication par **codes** traduits, D3, tableaux) via `t(cle, lang)`. `app/i18n.py` complet.
 
-- **Axe C1 bilingue FR/AR + RTL** : `app/i18n.py` **créé** (dictionnaire FR/AR complet des libellés) mais **non câblé** dans `app/app.py` (reste : sélecteur de langue, `ui.update_*` des libellés sur changement de langue, bascule RTL, lecture de `t(cle, lang)` dans les sorties). Patron : `../tunisie-simulateur-paie/app/app.py` (fonction `_appliquer_langue`, lignes ~176-225).
+**Résidus FR (mineurs, itération ultérieure)** :
+
+- Message `statut_api` (technique, orienté développeur).
+- **Graphique** (axes matplotlib) et **PDF** : rendus en français — matplotlib ne gère pas l'arabe RTL sans `arabic-reshaper` + `python-bidi`.
+- **Comparateur** : entêtes/colonnes de la grille en français.
 
 **Plans de référence** : `docs/notes/ameliorations-avancees.md` (7 axes A-G) et `docs/notes/plan-a-c-actions.md` (décomposition A/C).
 

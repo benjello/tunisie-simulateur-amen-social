@@ -31,6 +31,7 @@ from openfisca_client import (
     construire_situation,
     expliquer_eligibilite,
 )
+from i18n import LANGUES, t
 
 ANNEES = [str(a) for a in range(2020, 2027)]
 
@@ -52,11 +53,14 @@ def _grille_enfants(n: int) -> pd.DataFrame:
 
 
 app_ui = ui.page_fillable(
-    ui.h3("Simulateur Amen social — Tunisie"),
-    ui.markdown(
-        "Répondez aux questions ci-dessous : votre estimation s'affiche en bas. "
-        "Les **options avancées** sont facultatives."
+    ui.tags.script(
+        "Shiny.addCustomMessageHandler('setdir', function(m){"
+        "document.documentElement.setAttribute('dir', m.dir);"
+        "document.documentElement.setAttribute('lang', m.lang);});"
     ),
+    ui.input_select("lang", "Langue / اللغة", LANGUES, selected="fr"),
+    ui.output_ui("titre_app"),
+    ui.output_ui("intro_ui"),
     ui.output_ui("statut_api"),
     ui.accordion(
         ui.accordion_panel(
@@ -74,11 +78,7 @@ app_ui = ui.page_fillable(
             ),
             ui.panel_conditional(
                 "input.nb_enfants > 0",
-                ui.markdown(
-                    "**Précisez chaque enfant** (double-cliquez pour éditer) : âge, "
-                    "étudiant, handicap (Aucun / Léger / Lourd), et maladies "
-                    "donnant droit à une aide (gluten, xeroderma)."
-                ),
+                ui.output_ui("enfants_help_ui"),
                 ui.output_data_frame("grille"),
             ),
             value="p_foyer",
@@ -110,10 +110,7 @@ app_ui = ui.page_fillable(
         ),
         ui.accordion_panel(
             "④ Options avancées (facultatif)",
-            ui.markdown(
-                "*À remplir seulement si vous connaissez ces informations. "
-                "Sinon, laissez tel quel : ça ne bloque pas l'estimation.*"
-            ),
+            ui.output_ui("avance_help_ui"),
             ui.input_radio_buttons(
                 "amg1", "Le foyer a-t-il une carte de soins gratuits (AMG1) ?",
                 {"non": "Non", "oui": "Oui"}, selected="non", inline=True,
@@ -140,9 +137,9 @@ app_ui = ui.page_fillable(
     ),
     ui.hr(),
     ui.output_ui("entete"),
-    ui.markdown("### Votre estimation"),
+    ui.output_ui("titre_estimation"),
     ui.output_ui("resume"),
-    ui.download_button("export_pdf", "Télécharger l'attestation (PDF)", class_="btn-sm"),
+    ui.download_button("export_pdf", "PDF ⭳", class_="btn-sm"),
     ui.hr(),
     ui.input_action_button(
         "calculer",
@@ -150,29 +147,24 @@ app_ui = ui.page_fillable(
         class_="btn-secondary",
     ),
     ui.card(
-        ui.card_header("Total des aides selon le revenu mensuel du ménage"),
+        ui.output_ui("graphe_header_ui"),
         ui.output_plot("courbe_aides", height="320px"),
     ),
     ui.accordion(
         ui.accordion_panel(
             "Comparateur par année (évolution du barème, situation constante)",
             ui.output_data_frame("comparateur"),
+            value="p_comp",
         ),
         ui.accordion_panel(
             "Détails (toutes les variables calculées)",
             ui.output_data_frame("details"),
+            value="p_details",
         ),
         open=False,
         id="acc_details",
     ),
-    ui.markdown(
-        "Calculé par le moteur **OpenFisca-Tunisia** (prestations non "
-        "contributives, programme Amen social), avec une réforme corrective "
-        "(`reform.py`). Montants **mensuels** (DT/mois). Barème : allocation de "
-        "base + 10 DT/enfant à charge + 20 DT/enfant handicapé à charge "
-        "(majoration × 2). Référence : décret 2020-317 du 19 mai 2020 ; loi "
-        "organique n° 2019-10."
-    ),
+    ui.output_ui("footer_ui"),
     title="Simulateur Amen social Tunisie",
 )
 
@@ -216,6 +208,63 @@ def server(input, output, session):
     def grille():
         return render.DataGrid(enfants_rv(), editable=True, width="100%")
 
+    # ------------------------------------------------------------------ i18n
+    def _lang() -> str:
+        return str(input.lang() or "fr")
+
+    @reactive.effect
+    def _appliquer_langue():
+        lang = _lang()
+        oui_non = {"non": t("opt_non", lang), "oui": t("opt_oui", lang)}
+        ui.update_select("annee", label=t("q_annee", lang))
+        ui.update_numeric("nb_adultes", label=t("q_nb_adultes", lang))
+        ui.update_numeric("nb_enfants", label=t("q_nb_enfants", lang))
+        ui.update_numeric("revenu", label=t("q_revenu", lang))
+        ui.update_numeric("decile", label=t("q_decile", lang))
+        for cid, cle in (("residence", "q_residence"), ("achat", "q_achat"),
+                         ("amg1", "q_amg1"), ("amg2", "q_amg2"), ("pnafn", "q_pnafn")):
+            ui.update_radio_buttons(cid, label=t(cle, lang), choices=oui_non,
+                                    selected=str(input[cid]()), inline=True)
+        ui.update_action_button("calculer", label=t("btn_detail", lang))
+        # Titres des panneaux (entonnoir + bas de page).
+        ui.update_accordion_panel("form_acc", "p_foyer", title=t("step_foyer", lang))
+        ui.update_accordion_panel("form_acc", "p_ressources", title=t("step_ressources", lang))
+        ui.update_accordion_panel("form_acc", "p_biens", title=t("step_biens", lang))
+        ui.update_accordion_panel("form_acc", "p_avance", title=t("step_avance", lang))
+        ui.update_accordion_panel("acc_details", "p_comp", title=t("comparateur_header", lang))
+        ui.update_accordion_panel("acc_details", "p_details", title=t("details_header", lang))
+        # Sens de lecture (RTL en arabe).
+        direction = "rtl" if lang == "ar" else "ltr"
+        session.send_custom_message("setdir", {"dir": direction, "lang": lang})
+
+    @render.ui
+    def titre_app():
+        return ui.h3(t("app_title", _lang()))
+
+    @render.ui
+    def intro_ui():
+        return ui.markdown(t("intro", _lang()))
+
+    @render.ui
+    def enfants_help_ui():
+        return ui.markdown(t("enfants_help", _lang()))
+
+    @render.ui
+    def avance_help_ui():
+        return ui.markdown("*" + t("avance_help", _lang()) + "*")
+
+    @render.ui
+    def titre_estimation():
+        return ui.markdown(t("votre_estimation", _lang()))
+
+    @render.ui
+    def graphe_header_ui():
+        return ui.card_header(t("graphe_header", _lang()))
+
+    @render.ui
+    def footer_ui():
+        return ui.markdown(t("footer", _lang()))
+
     @render.ui
     def statut_api():
         if api_disponible():
@@ -258,9 +307,10 @@ def server(input, output, session):
         nb_enfants = int(input.nb_enfants() or 0)
         taille = nb_adultes + nb_enfants
         return ui.markdown(
-            f"**Année :** {input.annee()} — **ménage de {taille} personne(s)** "
-            f"({nb_adultes} adulte(s), {nb_enfants} enfant(s)) — "
-            f"**revenu** {input.revenu()} DT/mois."
+            t("entete_tpl", _lang()).format(
+                annee=input.annee(), taille=taille, adultes=nb_adultes,
+                enfants=nb_enfants, revenu=input.revenu(),
+            )
         )
 
     def _situation(revenu: float, annee: int) -> dict:
@@ -298,26 +348,26 @@ def server(input, output, session):
                 class_="alert alert-danger",
             )
 
+        lang = _lang()
         res = contenu
         eligible = bool(res.get("transfert_monetaire_permanent_eligible"))
         tmp = res.get("transfert_monetaire_permanent") or 0.0
 
+        def num(x):
+            return f"{x:,.3f}".replace(",", " ")
+
+        def dt(x):
+            unite = " \u062f.\u062a" if lang == "ar" else " DT"
+            return ("—" if x is None else num(x)) + unite
+
         if eligible:
             bandeau = ui.div(
-                ui.markdown(
-                    f"✅ **Ménage éligible** au transfert monétaire permanent : "
-                    f"**{tmp:,.3f} DT/mois**".replace(",", " ")
-                    + f" (soit {tmp * 12:,.3f} DT/an).".replace(",", " ")
-                ),
+                ui.markdown(t("banniere_eligible", lang).format(mt=num(tmp), an=num(tmp * 12))),
                 class_="alert alert-success",
             )
         else:
             bandeau = ui.div(
-                ui.markdown(
-                    "ℹ️ **Ménage non éligible** au transfert monétaire permanent : "
-                    "ni les critères primaires (revenu/résidence/achat) ni le "
-                    "décile de ciblage ne sont remplis."
-                ),
+                ui.markdown(t("banniere_non_eligible", lang)),
                 class_="alert alert-info",
             )
 
@@ -327,64 +377,43 @@ def server(input, output, session):
             achat_onereux=_oui(input.achat()),
             score_decile=int(input.decile() or 11),
         )
-        items = [ui.tags.li(r) for r in explication["raisons"]]
-        titre_exp = (
-            f"Pourquoi éligible — voie : {explication['voie']}"
-            if explication["eligible"]
-            else "Pourquoi non éligible"
-        )
+        items = []
+        for raison in explication["raisons"]:
+            params = {
+                k: (dt(v) if k in ("revenu", "seuil", "ecart") and isinstance(v, float) else v)
+                for k, v in raison.items() if k != "code"
+            }
+            items.append(ui.tags.li(t(raison["code"], lang).format(**params)))
+        if explication["eligible"]:
+            voie = t(explication["voie_code"], lang) if explication["voie_code"] else ""
+            titre_exp = t("exp_titre_oui", lang).format(voie=voie)
+        else:
+            titre_exp = t("exp_titre_non", lang)
         carte_explication = ui.card(
             ui.card_header(titre_exp),
             ui.tags.ul(*items),
         )
 
-        # D3 — anti-non-recours : comment faire valoir ses droits.
+        # D3 — anti-non-recours.
         ouvre_des_droits = explication["eligible"] or (
             (res.get("total_aides_mensuel") or 0.0) > 0
         )
         if ouvre_des_droits:
             carte_demarche = ui.card(
-                ui.card_header("✅ Comment faire valoir vos droits"),
-                ui.markdown(
-                    "Votre foyer **semble ouvrir des droits**. Cette estimation "
-                    "est indicative ; pour une décision officielle :\n\n"
-                    "- Déposez une demande à l'**unité locale de promotion sociale** "
-                    "de votre délégation (direction régionale des affaires "
-                    "sociales), ou inscrivez-vous au **registre social / "
-                    "plateforme Amen**.\n"
-                    "- Prévoyez une **pièce d'identité (CIN)** et les justificatifs "
-                    "de **revenus** et de **composition du foyer**.\n"
-                    "- Un **identifiant social unique** permet de **suivre la "
-                    "demande** et, en cas de refus, de déposer un **recours**.\n\n"
-                    "*Réf. : décret gouvernemental n° 2020-317 ; ministère des "
-                    "Affaires sociales (social.gov.tn).*"
-                ),
+                ui.card_header(t("d3_titre_oui", lang)),
+                ui.markdown(t("d3_corps_oui", lang)),
                 class_="border-success",
             )
         else:
             carte_demarche = ui.card(
-                ui.card_header("ℹ️ Que faire ensuite"),
-                ui.markdown(
-                    "D'après vos réponses, votre foyer **ne semble pas remplir "
-                    "les critères** cette année. Vous pouvez néanmoins :\n\n"
-                    "- vous **inscrire au registre social** (votre situation peut "
-                    "évoluer, et l'inscription ouvre d'autres services) ;\n"
-                    "- demander un **réexamen / recours** auprès de l'unité locale "
-                    "de promotion sociale si vous estimez l'évaluation inexacte.\n\n"
-                    "*Cette estimation est indicative et ne remplace pas "
-                    "l'évaluation officielle.*"
-                ),
+                ui.card_header(t("d3_titre_non", lang)),
+                ui.markdown(t("d3_corps_non", lang)),
                 class_="border-info",
             )
 
         total = res.get("total_aides_mensuel") or 0.0
         bandeau_total = ui.div(
-            ui.markdown(
-                f"💰 **Total des aides du ménage : {total:,.3f} DT/mois**".replace(
-                    ",", " "
-                )
-                + f" (soit {total * 12:,.3f} DT/an).".replace(",", " ")
-            ),
+            ui.markdown(t("banniere_total", lang).format(mt=num(total), an=num(total * 12))),
             class_="alert alert-primary",
         )
 
@@ -395,7 +424,7 @@ def server(input, output, session):
                 style = "font-weight:700;" if fort else ""
                 rows.append(
                     ui.tags.tr(
-                        ui.tags.td(libelle, style=style),
+                        ui.tags.td(t(cle, lang), style=style),
                         ui.tags.td(
                             _fmt(res.get(cle), unite),
                             style=f"text-align:right;{style}",
@@ -415,7 +444,7 @@ def server(input, output, session):
             carte_explication,
             carte_demarche,
             ui.card(
-                ui.card_header("Vos aides"),
+                ui.card_header(t("vos_aides", lang)),
                 _table(
                     aides_entrees,
                     fort_cles=(
@@ -426,7 +455,7 @@ def server(input, output, session):
             ),
             ui.accordion(
                 ui.accordion_panel(
-                    "Détail du calcul (comment on arrive à ce résultat)",
+                    t("detail_calcul", lang),
                     _table(list(DIAGNOSTIC)),
                 ),
                 open=False,
